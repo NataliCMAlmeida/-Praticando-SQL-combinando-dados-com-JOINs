@@ -1,0 +1,154 @@
+%%%SQL
+
+SELECT * FROM TabelaDepartamento;
+
+SELECT * FROM TabelaColaboradores;
+
+SELECT * FROM TabelaClientes;
+
+SELECT * FROM TabelaTelefones;
+
+SELECT * FROM TabelaEmprestimo;
+
+SELECT * FROM TabelaPagamentos;
+
+SELECT * FROM TabelaScoreCredito;
+
+SELECT * FROM TabelaConta;
+
+SELECT * FROM TabelaClienteConta;
+
+--1. Nome do colaborador ao lado do nome do departamento
+SELECT 
+	c.NomeColaborador, 
+    d.NomeDepartamento
+FROM TabelaColaboradores c
+INNER JOIN TabelaDepartamento d ON c.id_departamento = d.id_departamento;
+    
+--2. Dados de contato do cliente (id, nome, telefone, email)
+
+/*SELECT cl.id_cliente, cl.Nome, t.Telefone
+FROM TabelaClientes cl
+LEFT JOIN TabelaTelefones t ON cl.id_cliente = t.id_cliente;*/
+-- Aplicar algo para não ter dados duplicados
+SELECT
+    clco.id_cliente,
+    cli.Nome,
+    cli.Email,
+    t.Telefone
+FROM TabelaClienteConta clco
+INNER JOIN TabelaClientes cli ON clco.id_cliente = cli.id_cliente
+INNER JOIN TabelaTelefones t ON cli.id_cliente = t.id_cliente;
+
+--3. Relação entre colaborador e cliente
+/*SELECT c.NomeColaborador, cl.Nome AS NomeCliente
+FROM TabelaClientes cl
+RIGHT JOIN TabelaColaboradores c ON cl.id_colaborador = c.id_colaborador;*/
+
+SELECT 
+	c.NomeColaborador,
+    cli.Nome AS NomeCliente
+FROM TabelaColaboradores c
+RIGHT JOIN TabelaClientes cli ON c.id_colaborador = cli.id_colaborador;
+
+--4. Clientes possuem empréstimos, destacando quais empréstimos ainda não foram associados a nenhum cliente e os clientes que não possuem empréstimos.
+
+/*SELECT 
+	cl.Nome AS NomeCliente, 
+    e.Tipo AS TipoEmprestimo, 
+    e.Valor
+FROM TabelaClientes cl
+FULL JOIN TabelaEmprestimo e ON cl.id_cliente = e.id_cliente;*/
+
+SELECT
+	e.id_cliente,
+    cli.Nome AS NomeCliente,
+    e.Status AS RealizaçaoEmprestimo,
+    e.Tipo As TipoEmprestimo,
+    e.Valor As ValorEmprestimo
+FROM TabelaEmprestimo e
+FULL JOIN TabelaClientes cli ON e.id_cliente = cli.id_cliente;
+
+--5.NomeCliente	TipoEmprestimo	ValorEmprestimo	DataPagamento	ValorPago
+SELECT
+	cli.Nome AS NomeCliente,
+    e.Tipo AS TipoEmprestimo,
+    e.Valor AS ValorEmprestimo,
+    p.DataPagamento AS DataPagamento,
+    p.Valor AS ValorPago
+FROM TabelaClientes cli 
+INNER JOIN TabelaEmprestimo e ON e.id_cliente = cli.id_cliente
+INNER JOIN TabelaPagamentos p ON p.id_emprestimo = e.id_emprestimo; 
+
+--6. identificar quais clientes têm acumulado grandes somas, ultrapassando $10,000, em empréstimos.
+SELECT
+	cli.Nome AS NomeCliente,
+    SUM(e.Valor) AS TotalEmprestimo
+FROM TabelaClientes cli 
+JOIN TabelaEmprestimo e ON cli.id_cliente = e.id_cliente
+GROUP BY cli.Nome HAVING SUM(e.Valor) > 10000;
+
+--7.visualizar todos os empréstimos realizados, seus valores e status (Ativo/Inativo), independentemente do cliente.
+SELECT 
+    Tipo AS TipoEmprestimo,
+    Valor AS ValorEmprestimo,
+    CASE 
+        WHEN Status = 1 THEN 'Ativo'
+        ELSE 'Inativo'
+    END AS Status
+FROM TabelaEmprestimo;
+
+--8.os clientes de São Paulo e os colaboradores responsáveis por eles, 
+--incluindo os departamentos aos quais esses colaboradores pertencem.
+SELECT
+    cli.Nome AS NomeCliente,
+    cli.Estado,
+    col.NomeColaborador,
+    d.NomeDepartamento
+FROM TabelaClientes cli
+INNER JOIN TabelaColaboradores col ON col.id_colaborador = cli.id_colaborador
+INNER JOIN TabelaDepartamento d ON d.id_departamento = col.id_departamento
+WHERE cli.Cidade = 'São Paulo';
+
+--9. identificar clientes cujos valores de empréstimo estejam acima ou abaixo da média geral
+SELECT
+    cli.Nome AS NomeCliente,
+    AVG(e.Valor) AS MedValoresEmprestimo,
+    CASE 
+        WHEN AVG(e.Valor) > (SELECT AVG(Valor) FROM TabelaEmprestimo) THEN 'Acima'
+        WHEN AVG(e.Valor) < (SELECT AVG(Valor) FROM TabelaEmprestimo) THEN 'Abaixo'
+        ELSE 'Igual'
+    END AS Classificacao
+FROM TabelaClientes cli
+JOIN TabelaEmprestimo e ON e.id_cliente = cli.id_cliente
+GROUP BY cli.Nome HAVING AVG(e.Valor) <> (SELECT AVG(Valor) FROM TabelaEmprestimo);
+
+--Não suportados no SQLite
+SELECT
+    cli.Nome AS NomeCliente,
+    AVG(e.Valor) AS MedValoresEmprestimo,
+    CASE 
+        WHEN AVG(e.Valor) > @MediaGlobal THEN 'Acima'
+        WHEN AVG(e.Valor) < @MediaGlobal THEN 'Abaixo'
+        ELSE 'Igual'
+    END AS Classificacao
+FROM TabelaClientes cli
+JOIN TabelaEmprestimo e ON e.id_cliente = cli.id_cliente
+GROUP BY cli.Nome HAVING AVG(e.Valor) <> @MediaGlobal;
+--O símbolo @ é usado, em SQL Server, para declarar e referenciar variáveis locais, armazenando valores temporários que pode ser reutilizados na mesma consulta ou bloco de código.
+
+--10. lista detalhada que mostre o nome de cada colaborador, seu email e o nome do departamento ao qual pertence.
+SELECT
+	col.NomeColaborador,
+    col.EmailColaborador,
+    d.NomeDepartamento
+FROM TabelaColaboradores col
+JOIN TabelaDepartamento d on d.id_departamento = col.id_departamento;
+
+SELECT 
+    COALESCE(c.NomeColaborador, 'Sem Colaborador') AS NomeColaborador,
+    COALESCE(d.NomeDepartamento, 'Sem Departamento') AS NomeDepartamento,
+    COALESCE(c.EmailColaborador, 'Não informado') AS Email
+FROM TabelaColaboradores c
+FULL JOIN TabelaDepartamento d ON c.id_departamento = d.id_departamento;
+
